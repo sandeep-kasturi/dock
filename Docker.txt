@@ -1,0 +1,208 @@
+Docker is a powerful tool that helps developers create, deploy, and run applications in isolated environments called containers
+
+Terminology
+___________
+
+a. Container	:- A container is a lightweight, standalone, and executable package that includes everything needed to run your application: code, runtime (like the JVM), libraries, and system tools. It’s like a mini virtual machine but much lighter.
+
+b. Image	:- An image is a blueprint or template for creating containers. Think of it as a snapshot of your application and its environment. You build an image first, and then you can run one or more containers from that image.
+
+c. Dockerfile	:- A Dockerfile is a script that contains instructions for building a Docker image. It defines the environment, dependencies, and how to run your application.
+
+d. Docker Hub	:- Docker Hub is a cloud-based repository where you can store and share Docker images. It’s like GitHub for Docker images.
+
+e. Volume	:- Volumes are used to persist data outside of containers. For example, if your Java application writes logs or saves files, you can use volumes to ensure the data isn’t lost when the container stops
+
+
+Docker Commands
+_______________
+
+docker pull openjdk:17			:- downloads the image from the Docker Hub with the specified version
+
+docker images				:- lists all the available images from our local machine
+
+docker run openjdk:17 java -version	:- run is used to create the container for the provided image (here it is openjdk:17)
+					   * if the image is not present in local machine, then docker tries to pull it from Docker Hub
+					   * if the Docker Hub doesn't have the specified repository, then it throws error like "Error response from daemon: pull access denied for openjdk, repository does not exist or may require 'docker login'"
+					   after successfully creating container, it executes the "java -version" command (after executing the command, it stops the container cause it is a short-lived process(means it is a simple command to execute unlike a tomcat server which continuously listens to a particulat port))
+					   the "java -version" command is not mandatory here, cause the some of the application-specific images like ngnix, mysql, openjdk etc.. includes a default command like starting the server (so we don't need to provide any command, but if we specify any command we'll able to know that the container is successfully created, cause the command will be executed and logs in the console)
+
+docker run ubuntu			:- it creates a container with ubuntu image, but we didn't specify any command, so it stops the container immediately
+
+docker run -it ubuntu bash		:- it creates a ubuntu container and open a bash(shell)
+					   -i used for interactive session (means we can execute the commands in real time for that ubuntu)
+					   -t allocates a pseudo-TTY(terminal), we can see a temrinal with root logged in user (root@abc12345:/#)
+
+docker run -d -it ubuntu bash		:- here we are creating and running the container in detached(-d) mode means in background
+					   but -it used for interactive session means foreground process, so both conflicts with each other
+					   ***note*** - so -d and -it serves diff puposes, so they shouldn't be generally used together
+
+docker run -d --name java-contianer openjdk:17		:- creates a jdk container
+							   -d is used to run the container in detached(background) mode (means it doesn't block the current terminal instance, so we can use the current terminal to do other operation)
+							   --name <provide_name> is used to add a custom name to our container
+
+docker start container_name		:- starts the specified container
+
+docker exec -it ubuntu bash		:- executes the command in an already running container
+					   opens the interactive session of bash inn foreground
+					   * if the container is not running, then it throws error like "Error response from daemon: Container container_name is not running"
+
+docker ps				:- to list all the running containers
+
+docker ps -a				:- lists all the running and also the stopped containers
+
+docker stop container_id		:- stops the particular container
+
+docker rm container_id			:- removes the stopped docker containers
+
+docker rmi openjdk:17(image_name)	:- removes the docker image from local machine
+
+docker build -t my-java-app .		:- used to build the docker image from the dockerfile
+					   . is relative path where the dockerfile is present (we cna specify the absolute path also)
+					   -t is used to provide the tag_name for the docker image (not mandatory to use but highly recommended)
+
+docker logs <container-id>		:- shows the logs of a docker container (suppose if we run a spring image, it stopped because of an unexpected error, in that case container won't start, so to see/debug the issue we can use this command)
+
+docker logs -f <container-id>		:- continuously stream/view the logs
+
+docker logs -t <container-id>		:- provides the timestamp of the logs
+
+docker logs -f --tail 100 -t <container-id>	:- we can also provide no.of lines using head n tail
+
+
+Dockerfile of an springboot application
+_______________________________________
+
+Exmaple-1:-
+-----------
+
+FROM openjdk:17						--> Use the official OpenJDK 17 image as the base image (means we need to jdk to run the jar file of our spring appl)
+
+WORKDIR /app						--> Set the working directory inside the container (creates a dir named /app in the container)
+
+COPY target/my-java-app.jar /app/my-java-app.jar	--> Copies the local jar of our appl to above created working dir(/app) in container
+
+CMD ["java", "-jar", "my-java-app.jar"]			--> whenever this dockerfile is run (docker run), this particular CMD(command) will be executed (in this command we provided our /app/my-java-app.jar to run the jar from the container)
+
+
+docker build -t my-java-app				--> build the docker image using this command in docker terminal where the dockerfile is present
+
+Example-2:-
+-----------
+
+FROM openjdk:17
+
+WORKDIR /app
+
+COPY target/my-java-app.jar /app/my-java-app.jar
+
+EXPOSE 8080						--> here we are specifying that our spring application is configured to run on 8080 port
+
+ENTRYPOINT ["java", "-jar", "my-java-app.jar"]		--> this is the entrypoint of our container, means this command is executed first whenever the a container is created n run for this dockerfile
+							    ENTRYPOINT command can't be replaced at run time
+
+CMD ["--spring.profiles.active=default"]		--> Optionally provide default arguments using CMD (these can be override at run time(while creating/running container))
+
+
+docker build -t my-java-app				--> build the docker image using this command in docker terminal where the dockerfile is present
+
+
+creating and running container for Example-2 dockerfile
+-------------------------------------------------------
+
+regarding port mapping:-
+------------------------
+
+docker run -p 8080:8080 docker_image_name		    --> here it creates n runs the container
+							    -p for publishing the port (-p <host-port>:<container-port>) 
+							    <container-port> - the port we configured in spring boot properties file
+							    <host-port> - the port we are going to make calls for docker container
+
+docker run -p 9000:8080 docker_image_name		    --> we can't make calls to localhost:8080, eventhough we configured 8080 in properties file
+							    we need to make calls to localhost:9000
+
+regarding CMD and ENTRYPOINT:-
+------------------------------
+
+docker run -p 8080:8080 docker_image_name				--> by default it invokes (java -jar my-java-app.jar --spring.profiles.active=default), cause we mentioned it in the CMD
+
+docker run -p 8080:8080 my-java-app --spring.profiles.active=prod	--> it invokes (java -jar my-java-app.jar --spring.profiles.active=prod)
+
+means CMD values can be overridden at runtime but not the ENTRYPOINT value
+
+
+Note:-
+______
+
+If I run "docker run -p 8080:8080 spring_dokcer_img" which internally invokes "java -jar spring_app.jar"
+
+case-1:- (long-running)
+--------
+if our application is a web application, then it design to listens for HTTP requests, so the container "does't stop"
+
+case-2:- (short-lived)
+--------
+if our application is stadalone/some_springbatch_job application, then it does it's work and then the "container stops"
+
+
+making short-lived application containers to run indefinite
+-----------------------------------------------------------
+
+1.implement the indefinite behaviour at run time
+------------------------------------------------
+docker run <image-name> tail -f /dev/null		--> run the image(short-lived like spring batch job appl) with tail -f /dev/null
+							    tail -f	: focefully lists last 10 records (if new record adds, then that also updated in real time/console)
+							    /dev/null	: A special file that discards all data written to it and provides an endless stream of "nothing."
+
+2.implement the indefinite behaviour before run time
+----------------------------------------------------
+CMD ["sh", "-c", "java -jar my-spring-batch-app.jar && tail -f /dev/null"]	--> applying same logic but in CMD/ENTRYPOINT
+
+
+
+All about docker push
+_____________________
+
+The docker push command is used to upload a Docker image to a container registry (e.g., Docker Hub, Amazon ECR, or a private registry)
+
+step-1: Build the image
+-----------------------
+
+docker build -t my-java-app:1.0 .		--> build the image for a dockerfile with the tag name (my-java-app) and snapshot version(1.0) (always use meaningful versions)
+
+step-2: Tag the image for the Registry
+--------------------------------------
+
+<registry-url>/<repository-name>:<tag>			--> this is the syntax
+
+docker tag my-java-app:1.0 username/my-java-app:1.0	--> first occurence of my-java-app:1.0 is from local
+							    username/my-java-app:1.0 ---- username_of_dockerHub/repository_name_of_dockerHub:specify_the_version_to_dockerHub
+step-3: Verify the tag
+----------------------
+
+docker images						--> verify username/tag for the image
+
+step-4: Push the image
+----------------------
+
+docker push username/my-java-app:1.0			--> push the tagged image
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,103 @@
+scrum master 
+
+po  -- requirement,    talks with ba
+
+client side n infy side also
+ba  -- analysis, understand changes , connects with developers, makes ticket -- based on ticket  
+
+
+daily scrum
+
+jira
+sprint - 10 days  given by scrum master (scrum board)
+
+2-3 sessions
+backlog refinement session -- for upcoming changes discussion
+
+4-5 weeks - eveery release
+
+
+bt-1 to code freze to local test
+
+bt-2 direct release to prod
+
+
+
+
+regression test - total appl test
+
+
+
+
+
+
+resume points
+-------------
+
+1. jobs endpoints & batch for log generation
+
+
+2. logging
+
+
+3. caching if used
+
+
+4. any messaging brokers for async communication or normal events
+
+
+5. if microservices, then what is the design pattern like saga
+
+
+6. service to service communication
+
+
+7. security jwt with refreshtoke or oauth or session based
+
+
+8. deployment  
+
+
+9. database used, any store procedures
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
