@@ -1,0 +1,269 @@
+deploy docker image using amazon ecr and amazon ecs & fargate
+-------------------------------------------------------------
+
+spring app > docker image > Amazon ECR(private repo) > Amazon ECS > AWS Fargate
+
+spring app is already created and docker image also already build for that appl
+
+
+open ECR and create a repository {
+
+	give repo name
+
+}
+
+complete the repo creation and copy the Repository URI
+
+
+Profile > My Security Credentials > create new access key > copy both Access Key ID and Secret Access Key
+
+Download AWS CLI
+
+open cmd {
+
+	enter aws configure
+	provide access key id
+	provide secret access key		--> aws configuration done
+	provide region name
+	provide output format json
+
+
+
+	enter "aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin <add the ecr_repo_link_without_reponame>"
+	it will login into our ECR
+
+
+	//perform below operations in cmd or docker_terminal
+
+	docker tag image_name:version ECR_repo_link/repo_name			--> here we tagged our image with ECR (just like docker hub)
+										--> we didn't mention ECR verison, so it will be latest by default
+	
+	docker push ECR_repo_link/repo_name					--> this will push our image from local to ECR repo
+
+}
+
+we can see the docker image in the AWS ECR repo
+
+
+open AWS ECS > Task definition > create new task definition {
+	
+	provide task definition name
+	select task role none
+	set task memory 1GB
+	set task cpu .5vCPU
+	
+	add container {
+		
+	 	provide container name
+	 	image : copy the docker image link of AWS ECR
+		specify hard limit : 1024MiB
+		add portmappings: 8080-tcp and 80-tcp 
+	}
+	complete container creation
+
+	complete task definition creation
+
+}
+
+open AWS ECS > Cluster > create a cluster {
+	
+	provide cluster name
+	complete the cluster creation
+}
+
+open above created cluster > tasks > Run new task {
+
+	select launch type fargate
+	select previously created task definition
+
+	create new security group or use previous one (i.e., all_tcp & all_traffic)
+}
+
+run the task
+
+copy the public ip of above task definition
+
+15.207.119.210:5000/getMsg				--> we can see our appliction is successfully deployed
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
