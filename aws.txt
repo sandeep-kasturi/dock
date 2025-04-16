@@ -1,19 +1,37 @@
 deploy docker image using amazon ecr and amazon ecs & fargate
--------------------------------------------------------------
+_____________________________________________________________
+
+Flow:-
+------
+
+* AWS ECS takes the docker image from local thorugh AWS CLI
+* AWS ECS used Fargate to deploy/run the docker image
+
+
+Modules/tools used:-
+-------------------- 
 
 spring app > docker image > Amazon ECR(private repo) > Amazon ECS > AWS Fargate
+
 
 spring app is already created and docker image also already build for that appl
 
 
+
+ECR repo creation
+-----------------
+
 open ECR and create a repository {
 
-	give repo name
+	give repo name						--> this repo will have our docker image after we successfully push the docker image from local using AWS CLI
 
 }
 
 complete the repo creation and copy the Repository URI
 
+
+Pushing local docker image to ECR repo using AWS CLI
+----------------------------------------------------
 
 Profile > My Security Credentials > create new access key > copy both Access Key ID and Secret Access Key
 
@@ -45,6 +63,18 @@ open cmd {
 we can see the docker image in the AWS ECR repo
 
 
+pulling the AWS ECR repo(docker image) to AWS ECS
+------------------------------------------------- 
+
+* need to create a cluster with AWS Fargate launch type
+* need to create a task definition (it will have the AWS ECR repo URI (docker image))
+* add the task definition to cluster
+* once the task definition added to cluster means our application is successfully deployed
+
+
+a.Task Definition creation:-
+----------------------------
+
 open AWS ECS > Task definition > create new task definition {
 	
 	provide task definition name
@@ -65,11 +95,17 @@ open AWS ECS > Task definition > create new task definition {
 
 }
 
+b.Cluster creation 
+------------------
+
 open AWS ECS > Cluster > create a cluster {
 	
 	provide cluster name
 	complete the cluster creation
 }
+
+c.adding task definition to cluster
+-----------------------------------
 
 open above created cluster > tasks > Run new task {
 
@@ -89,13 +125,215 @@ copy the public ip of above task definition
 
 
 
+automate the process of building docker image to amazon ecr using aws codebuild and deploy to amazon ecs & fargate
+__________________________________________________________________________________________________________________
+
+Flow:-
+------
+
+* aws code build setup takes code from github
+* github code contains dockerfile and buildspec.yml file (docker file used to build the docker images, in pom.xml we specified how the build file name should be) (buildspec.yml file used to automate the building the jar and docker image then push the docker image to AWS ECR)
+* AWS ECS takes the docker image from AWS ECR
+* AWS ECS used Fargate to deploy/run the docker image
 
 
 
 
+Pom.xml:-
+---------
+
+<build>
+	<plugins>
+		<plugin>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-maven-plugin</artifactId>
+		</plugin>
+	</plugins>
+	<finalName>demo-service</finalName>						--> here we specified what the build file name should be (if mvn install, it creates demo-service.jar file)
+</build>
 
 
 
+Dockerfile:-
+------------
+
+#FROM openjdk:17									--> the AWS Farget is unable to pull openjdk docker image
+
+FROM public.ecr.aws/amazoncorretto/amazoncorretto:17					--> so we used amazon's jdk
+
+
+WORKDIR /app
+
+COPY target/demo-service.jar /app/demo-service.jar					--> in pom.xml we specified the file name, so whenever build is created the file name will be like this only (so we directly used the filename)
+
+EXPOSE 5000										--> exposing the our spring server port
+
+ENTRYPOINT ["java", "-jar", "/app/demo-service.jar"]					--> executing the jar
+
+
+
+buildspec.yml:-
+---------------
+
+version: 0.2
+
+
+phases:
+  pre_build:
+    commands:
+      - mvn clean install
+      - echo Logging in to Amazon ECR...
+      - aws --version
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin 052734401032.dkr.ecr.us-east-1.amazonaws.com
+      - REPOSITORY_URI=052734401032.dkr.ecr.us-east-1.amazonaws.com/my-demo-app-cicd-registry-repo									--> here we need to specify the AWS ECR repository URI (it contains the docker image)
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=build-$(echo $CODEBUILD_BUILD_ID | awk -F":" '{print $2}')
+
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker image...
+      - docker build -t $REPOSITORY_URI:latest .
+      - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker images...
+      - docker push $REPOSITORY_URI:latest
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - echo Writing image definitions file...
+      - printf '[{"name":"demo-service","imageUri":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
+      - cat imagedefinitions.json
+artifacts:
+  files:
+   - imagedefinitions.json
+   - target/demo-service.jar																		--> here we need to provide our build file name
+
+
+
+Modules/tools used:-
+-------------------- 
+
+spring app > docker image > Amazon ECR(private repo) > Amazon ECS > AWS Fargate
+
+
+spring app is already created and docker image also already build for that appl
+
+
+
+ECR repo creation
+-----------------
+
+open ECR and create a repository {
+
+	give repo name						--> this repo will have our docker image after we successfully completes our "Start Build" step in AWS CodeBuild 
+
+}
+
+complete the repo creation and copy the Repository URI
+
+
+Creating AWS CodeBuild
+----------------------
+
+open code build {
+	
+	specify project name
+	source provider : GitHub
+	Repository : Public 
+	Repository URL : https://github.com/sandeep-kasturi/aws-demo-pipeline		--> add the url after connecting aws to github using OAuth
+	
+	Operating System : Amazon Linux with defaut fields
+
+	Additional > Privileges > tick this field 					--> this filed gives permissions to build docker images
+
+	Build Specification : tick "Use a buildspec file" 				--> our github repo has this buildspec.yml file (so it will take from above github link)
+}
+
+complete the CodeBuild project
+
+here one step is pending, that is building the project, but for that we need the some permissions for our CodeBuild_Project. So follow below steps
+
+
+Adding required IAM Roles to AWS CodeBuild
+------------------------------------------
+
+open IAM > Roles {
+
+	search "codebuild" and select above created CodeBuild_Project
+	click on "add permissions"/"attach policy"
+	search "container"
+	select {
+		AmazonEC2ContainerRegistryFullAccess
+		AmazonEC2ContainerRegistryPowerUser
+	}
+	click/save "add permission"
+}
+
+Now open created CodeBuild_Project and click on "Start Build"
+we can see the build logs (if any error occurs while building it will display)
+
+after successfully completing above process,
+the AWS ECR repo will be updated with the our docker image
+
+
+pulling the AWS ECR repo(docker image) to AWS ECS
+------------------------------------------------- 
+
+* need to create a cluster with AWS Fargate launch type
+* need to create a task definition (it will have the AWS ECR repo URI (docker image))
+* add the task definition to cluster
+* once the task definition added to cluster means our application is successfully deployed
+
+
+a.Task Definition creation:-
+----------------------------
+
+open AWS ECS > Task definition > create new task definition {
+	
+	provide task definition name
+	select task role none
+	set task memory 1GB
+	set task cpu .5vCPU
+	
+	add container {
+		
+	 	provide container name
+	 	image : copy the docker image link of AWS ECR				--> provide the above AWS ECR repo link
+		specify hard limit : 1024MiB
+		add portmappings: 8080-tcp and 80-tcp 
+	}
+	complete container creation
+
+	complete task definition creation
+
+}
+
+b.Cluster creation 
+------------------
+
+open AWS ECS > Cluster > create a cluster {
+	
+	provide cluster name
+	complete the cluster creation
+}
+
+c.adding task definition to cluster
+-----------------------------------
+
+open above created cluster > tasks > Run new task {
+
+	select launch type fargate
+	select previously created task definition
+
+	create new security group or use previous one (i.e., all_tcp & all_traffic)
+}
+
+run the task
+
+copy the public ip of above task definition
+
+15.207.119.210:5000/getMsg				--> we can see our appliction is successfully deployed
 
 
 
