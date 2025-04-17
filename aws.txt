@@ -130,9 +130,15 @@ ________________________________________________________________________________
 
 Flow:-
 ------
+In this project we are only going to cover Continuous Integration process
 
+1.Continuous Integration  
+------------------------
 * aws code build setup takes code from github
 * github code contains dockerfile and buildspec.yml file (docker file used to build the docker images, in pom.xml we specified how the build file name should be) (buildspec.yml file used to automate the building the jar and docker image then push the docker image to AWS ECR)
+
+2.Coninuous Deployment (we need to use code pipeline, but we didn't covered here)
+----------------------
 * AWS ECS takes the docker image from AWS ECR
 * AWS ECS used Fargate to deploy/run the docker image
 
@@ -236,7 +242,7 @@ complete the repo creation and copy the Repository URI
 Creating AWS CodeBuild
 ----------------------
 
-open code build {
+open code build > create project {
 	
 	specify project name
 	source provider : GitHub
@@ -248,6 +254,8 @@ open code build {
 	Additional > Privileges > tick this field 					--> this filed gives permissions to build docker images
 
 	Build Specification : tick "Use a buildspec file" 				--> our github repo has this buildspec.yml file (so it will take from above github link)
+
+	keep untick the webhook checkbox						--> if we tick this field, our git commits will trigger the codeBuild pipeline to build the docker image and push it to AWS ECR (but the updated docker file in AWS ECR willn't be pulled by AWS ECS cause we didn't specify CD pipeline(i.e., AWS Code Pipeline))
 }
 
 complete the CodeBuild project
@@ -255,7 +263,7 @@ complete the CodeBuild project
 here one step is pending, that is building the project, but for that we need the some permissions for our CodeBuild_Project. So follow below steps
 
 
-Adding required IAM Roles to AWS CodeBuild
+Adding required IAM Roles to AWS CodeBuild (we followed this)
 ------------------------------------------
 
 open IAM > Roles {
@@ -269,6 +277,31 @@ open IAM > Roles {
 	}
 	click/save "add permission"
 }
+
+we can attach the policies like above (or) follow below process
+
+
+Adding required IAM Roles to AWS CodeBuild (another way)
+--------------------------------------------------------
+
+open above created codebuild project,
+click on link provided for Service role under Configuration section		--> it will directly takes to IAM portal for that particular codebuild project's role policies
+
+under Permissions section {
+
+	click on "add permissions"/"attach policy"
+	search "container"
+	select {
+		AmazonEC2ContainerRegistryFullAccess
+		AmazonEC2ContainerRegistryPowerUser
+	}
+	click/save "add permission"
+
+}
+
+
+
+
 
 Now open created CodeBuild_Project and click on "Start Build"
 we can see the build logs (if any error occurs while building it will display)
@@ -315,10 +348,11 @@ b.Cluster creation
 open AWS ECS > Cluster > create a cluster {
 	
 	provide cluster name
+	keep Infrastructure as AWS Fargate(serverless)
 	complete the cluster creation
 }
 
-c.adding task definition to cluster
+c.adding task definition to cluster  (we used this one)
 -----------------------------------
 
 open above created cluster > tasks > Run new task {
@@ -329,6 +363,32 @@ open above created cluster > tasks > Run new task {
 	create new security group or use previous one (i.e., all_tcp & all_traffic)
 }
 
+
+we can create a service for above created AWS ECS Cluster and add the above created task definition to this service
+
+d.adding task definition to cluster   (another way)
+-----------------------------------
+
+open above created cluster > service > Create new service {
+
+	Compute options : Launch type
+	Launch type : FARGATE
+	Platform version : LATEST
+	
+	Task definition family : select above created task definition
+	specify servie name
+
+	create and add a new Security group with {
+
+		All TCP - anywhere	
+		All traffic - anywhere
+
+	}
+	
+	complete the Service creation 
+}
+
+
 run the task
 
 copy the public ip of above task definition
@@ -337,6 +397,12 @@ copy the public ip of above task definition
 
 
 
+Try to change any content in spring appl and push it to github, it wont trigger the code_build_project to build the new docker file and push it to AWS ECR (cause we didn't tick the webhook option while creating the codeBuild project)
+
+to check it, open the above created codebuild project > Build history  	--> we can see only previous build (check the no.of builds)
+
+
+even if we tick the webhook checkbox, the new docker image will be build and pushed to AWS ECR, but it can't be pulled n deployed by AWS ECS n Fargate (cause we didn't provide CD pipeline)
 
 
 
@@ -355,6 +421,8 @@ copy the public ip of above task definition
 
 
 
+Creating continuous delivery pipeline using AWS Code Pipeline
+-------------------------------------------------------------
 
 
 
